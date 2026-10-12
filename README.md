@@ -1,1 +1,1 @@
-# analiza-spolki
+Eksperyment 05 – lokalna aplikacja Streamlit. Uruchom: python -m pip install -r requirements.txt, następnie python -m streamlit run app.py. Odpowiedzi są przechowywane wyłącznie w bieżącej sesji, bez zapisu do Supabase. Skala pewności: 5 poziomów słownych, bez domyślnego wyboru.
