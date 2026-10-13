@@ -72,7 +72,7 @@ def show_material(i, recalled=False):
             fig.update_layout(template='plotly_white',height=300,barmode='group',margin=dict(l=5,r=5,t=15,b=10),legend=dict(orientation='h',y=1.18),yaxis_title='mln USD')
             st.plotly_chart(fig,use_container_width=True,config={'displayModeBar':False})
             st.dataframe(pd.DataFrame({'Rok':f.Rok,'Przychody (mln)':f.revenue_musd.map(fmt),'Zysk netto (mln)':f.net_income_attributable_musd.map(fmt)}),hide_index=True,use_container_width=True)
-            st.caption('Zysk netto raportowany przypisany akcjonariuszom spółki. Może zawierać istotne pozycje niegotówkowe związane z wyceną instrumentów pochodnych. Nie jest to zysk skorygowany.')
+            st.caption('Zysk netto (mln USD). Wynik może uwzględniać zmiany wyceny instrumentów finansowych.')
         else:
             st.subheader('Co jeszcze wiemy?')
             a,b=st.columns(2)
