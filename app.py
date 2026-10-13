@@ -8,6 +8,7 @@ from urllib.error import HTTPError, URLError
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Czy kupiłbyś tę spółkę?", page_icon="📈", layout="centered", initial_sidebar_state="collapsed")
 st.markdown("<style>.block-container{max-width:800px;padding-top:1.3rem}div.stButton>button{min-height:2.7rem;border-radius:10px}</style>",unsafe_allow_html=True)
@@ -29,6 +30,32 @@ if 'order' not in st.session_state:
     st.session_state.current=None
     st.session_state.progress_data={}
     st.session_state.done=[]
+    st.session_state.scroll_to_top=False
+
+# Po zmianie ekranu przewijamy do początku, ale nie po zwykłym wyborze odpowiedzi.
+if st.session_state.get('scroll_to_top', False):
+    st.session_state.scroll_to_top = False
+    components.html("""
+    <script>
+    (function () {
+      function goTop() {
+        try {
+          const doc = window.parent.document;
+          const scrollers = [
+            doc.querySelector('[data-testid="stAppViewContainer"]'),
+            doc.querySelector('[data-testid="stMain"]'),
+            doc.querySelector('section.main'),
+            doc.scrollingElement
+          ];
+          scrollers.forEach(el => { if (el) el.scrollTop = 0; });
+          window.parent.scrollTo(0, 0);
+        } catch (e) { /* Nie blokuj aplikacji, jeśli przeglądarka ogranicza iframe. */ }
+      }
+      goTop();
+      [100, 300, 700].forEach(ms => setTimeout(goTop, ms));
+    })();
+    </script>
+    """, height=0)
 
 def save_answer(code, stage, decision, confidence):
     """Zapis pojedynczej odpowiedzi w nowej tabeli Supabase."""
@@ -73,6 +100,7 @@ def save_answer(code, stage, decision, confidence):
 def select_case(code):
     st.session_state.current=code
     st.session_state.screen='case'
+    st.session_state.scroll_to_top=True
     st.session_state.progress_data.setdefault(code,{'stage':0,'answers':[],'finished':False})
 
 def number_for(code):return st.session_state.order.index(code)+1
@@ -104,9 +132,9 @@ def show_finish(code,case,answers):
     st.divider()
     if len(st.session_state.done)<4:
         if st.button('Wybierz kolejny przypadek',type='primary',use_container_width=True):
-            st.session_state.screen='select';st.rerun()
+            st.session_state.screen='select';st.session_state.scroll_to_top=True;st.rerun()
     if st.button('Zakończ',use_container_width=True):
-        st.session_state.screen='end';st.rerun()
+        st.session_state.screen='end';st.session_state.scroll_to_top=True;st.rerun()
 
 if st.session_state.screen=='intro':
     st.title('Czy kupiłbyś tę spółkę?')
@@ -117,7 +145,7 @@ if st.session_state.screen=='intro':
     st.write('Możesz zmieniać zdanie w kolejnych etapach, ale nie możesz poprawiać wcześniejszych odpowiedzi.')
     st.write('Na końcu zobaczysz, co wydarzyło się później.')
     st.markdown('**Dziękuję za udział!**  \nGrzegorz Zalewski')
-    if st.button('Dalej →',type='primary',use_container_width=True):st.session_state.screen='select';st.rerun()
+    if st.button('Dalej →',type='primary',use_container_width=True):st.session_state.screen='select';st.session_state.scroll_to_top=True;st.rerun()
 elif st.session_state.screen=='select':
     st.title('Wybierz przypadek')
     st.write('Przygotowałem cztery różne historie giełdowe. Możesz zacząć od dowolnej z nich. Po zakończeniu zobaczysz dalszy przebieg kursu i będziesz mógł wybrać następny.')
@@ -167,10 +195,11 @@ elif st.session_state.screen=='case':
                 else:
                     data['finished']=True
                     if code not in st.session_state.done:st.session_state.done.append(code)
+                st.session_state.scroll_to_top=True
                 st.rerun()
 else:
     st.title('Dziękuję za udział!')
     st.write(f'Ukończone przypadki: **{len(st.session_state.done)} z 4**.')
     if len(st.session_state.done)<4:
-        if st.button('Wróć do wyboru przypadków',type='primary',use_container_width=True):st.session_state.screen='select';st.rerun()
+        if st.button('Wróć do wyboru przypadków',type='primary',use_container_width=True):st.session_state.screen='select';st.session_state.scroll_to_top=True;st.rerun()
     st.caption('Odpowiedzi zostały zapisane anonimowo na potrzeby eksperymentu.')
