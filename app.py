@@ -49,7 +49,7 @@ def save_answer(code, stage, decision, confidence):
             "apikey": key,
             "Authorization": "Bearer " + key,
             "Content-Type": "application/json",
-            "Prefer": "return=minimal,resolution=ignore-duplicates",
+            "Prefer": "return=minimal",
         },
         method="POST",
     )
@@ -58,7 +58,15 @@ def save_answer(code, stage, decision, confidence):
             if response.status not in (200, 201, 204):
                 raise RuntimeError(f"Supabase HTTP {response.status}")
     except HTTPError as error:
-        raise RuntimeError(f"Supabase HTTP {error.code}: {error.read().decode('utf-8', errors='replace')[:250]}") from error
+        body = error.read().decode("utf-8", errors="replace")
+        try:
+            code = json.loads(body).get("code")
+        except (ValueError, TypeError):
+            code = None
+        if error.code == 409 and code == "23505":
+            # Ta sama odpowiedź została już zapisana, np. po ponownej próbie.
+            return
+        raise RuntimeError(f"Supabase HTTP {error.code}: {body[:250]}") from error
     except URLError as error:
         raise RuntimeError(f"Błąd połączenia z bazą: {error.reason}") from error
 
