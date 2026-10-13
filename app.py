@@ -2,6 +2,9 @@ from pathlib import Path
 import importlib.util
 import random
 import uuid
+import json
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -26,6 +29,38 @@ if 'order' not in st.session_state:
     st.session_state.current=None
     st.session_state.progress_data={}
     st.session_state.done=[]
+
+def save_answer(code, stage, decision, confidence):
+    """Zapis pojedynczej odpowiedzi w nowej tabeli Supabase."""
+    url = str(st.secrets["SUPABASE_URL"]).rstrip("/") + "/rest/v1/decision_answers"
+    key = str(st.secrets["SUPABASE_KEY"])
+    payload = {
+        "test_id": st.session_state.session_id,
+        "case_id": code,
+        "stage": stage,
+        "case_order": number_for(code),
+        "decision": decision == "Tak",
+        "confidence": confidence,
+    }
+    request = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "apikey": key,
+            "Authorization": "Bearer " + key,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal,resolution=ignore-duplicates",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=12) as response:
+            if response.status not in (200, 201, 204):
+                raise RuntimeError(f"Supabase HTTP {response.status}")
+    except HTTPError as error:
+        raise RuntimeError(f"Supabase HTTP {error.code}: {error.read().decode('utf-8', errors='replace')[:250]}") from error
+    except URLError as error:
+        raise RuntimeError(f"Błąd połączenia z bazą: {error.reason}") from error
 
 def select_case(code):
     st.session_state.current=code
@@ -113,16 +148,21 @@ elif st.session_state.screen=='case':
         c=st.pills('Jak bardzo jesteś pewien/pewna tej decyzji?',options=CONFIDENCE_LEVELS,selection_mode='single',default=None,key=f'confidence_{code}_{i}')
         st.caption('Oceniasz pewność decyzji, nie prawdopodobieństwo wzrostu kursu.')
         if st.button('Zapisz i przejdź dalej' if i<3 else 'Zobacz swoje odpowiedzi',type='primary',use_container_width=True,disabled=(d is None or c is None)):
-            # Lokalna wersja bez połączenia z bazą. Nie zapisuje na serwerze.
-            data['answers'].append({'Etap':i+1,'Informacje':case.STAGES[i],'Decyzja':d,'Pewność':c,'Poziom pewności':CONFIDENCE_LEVELS.index(c)+1})
-            if i<3:data['stage']+=1
+            try:
+                save_answer(code, i+1, d, c)
+            except Exception as error:
+                st.error('Nie udało się zapisać odpowiedzi. Spróbuj ponownie. Twoja decyzja pozostaje zaznaczona.')
+                st.caption(f'Szczegóły techniczne: {error}')
             else:
-                data['finished']=True
-                if code not in st.session_state.done:st.session_state.done.append(code)
-            st.rerun()
+                data['answers'].append({'Etap':i+1,'Informacje':case.STAGES[i],'Decyzja':d,'Pewność':c,'Poziom pewności':CONFIDENCE_LEVELS.index(c)+1})
+                if i<3:data['stage']+=1
+                else:
+                    data['finished']=True
+                    if code not in st.session_state.done:st.session_state.done.append(code)
+                st.rerun()
 else:
     st.title('Dziękuję za udział!')
     st.write(f'Ukończone przypadki: **{len(st.session_state.done)} z 4**.')
     if len(st.session_state.done)<4:
         if st.button('Wróć do wyboru przypadków',type='primary',use_container_width=True):st.session_state.screen='select';st.rerun()
-    st.caption('W tej wersji testowej odpowiedzi są przechowywane tylko w bieżącej sesji przeglądarki. Zapis do Supabase podłączymy po sprawdzeniu aplikacji.')
+    st.caption('Odpowiedzi zostały zapisane anonimowo na potrzeby eksperymentu.')
